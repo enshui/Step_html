@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小米步数 · 每日记录</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FF6900'/%3E%3Ctext x='32' y='43' font-family='Arial,Helvetica,sans-serif' font-size='27' font-weight='700' fill='%23ffffff' text-anchor='middle'%3EMI%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --border: #e4e7ec;
+    --text: #1f2430; --muted: #6b7280; --accent: #d40511;
+    --accent-soft: #fdecec; --shadow: 0 4px 16px rgba(0,0,0,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d; --panel: #1f2229; --border: #333845;
+      --text: #e8eaf0; --muted: #9aa1ad; --accent: #ff5a63;
+      --accent-soft: #3a2326; --shadow: 0 4px 16px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); padding: 24px 20px 60px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+
+  /* ---------- 筛选区 ---------- */
+  .filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; padding: 16px 18px; margin-bottom: 18px; position: relative; z-index: 20; }
+  .fg { display: flex; flex-direction: column; gap: 6px; }
+  .fg > label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .btn {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: border-color .15s;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .popwrap { position: relative; display: inline-block; }
+  .popup {
+    position: absolute; top: calc(100% + 6px); left: 0; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+    padding: 14px; z-index: 50; display: none;
+  }
+  .popup.open { display: block; }
+  /* 日历 */
+  #calPop { width: 560px; max-width: calc(100vw - 40px); }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-nav { display: flex; gap: 6px; align-items: center; }
+  .cal-nav button { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 14px; }
+  .cal-nav button:hover { border-color: var(--accent); }
+  .cal-title { font-size: 13px; font-weight: 600; }
+  .cal-quick { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .cal-quick button { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 20px; padding: 3px 12px; font-size: 12px; cursor: pointer; }
+  .cal-quick button:hover { color: var(--accent); border-color: var(--accent); }
+  .cal-months { display: flex; gap: 24px; }
+  .cal-month { flex: 1; min-width: 0; }
+  .cal-month h4 { font-size: 13px; text-align: center; margin-bottom: 6px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-grid .dow { font-size: 11px; color: var(--muted); text-align: center; padding: 4px 0; }
+  .cal-day {
+    text-align: center; padding: 6px 0; font-size: 12px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; user-select: none;
+  }
+  .cal-day:hover { background: var(--accent-soft); }
+  .cal-day.dim { color: var(--muted); opacity: .45; }
+  .cal-day.hasdata::after { content: ""; display: block; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin: 1px auto 0; }
+  .cal-day.inrange { background: var(--accent-soft); border-radius: 0; }
+  .cal-day.selstart, .cal-day.selend { background: var(--accent); color: #fff; }
+  .cal-day.selstart { border-radius: 6px 0 0 6px; }
+  .cal-day.selend { border-radius: 0 6px 6px 0; }
+  .cal-day.samesel { border-radius: 6px !important; }
+  .cal-foot { margin-top: 10px; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .cal-foot .apply { border: 0; background: var(--accent); color: #fff; border-radius: 6px; padding: 6px 16px; cursor: pointer; font-size: 12px; }
+  /* 账号弹层 */
+  #accPop { width: 300px; max-height: 420px; overflow: auto; }
+  .acc-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+  .acc-actions button { flex: 1; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 6px; padding: 5px 0; font-size: 12px; cursor: pointer; }
+  .acc-actions button:hover { color: var(--accent); border-color: var(--accent); }
+  .acc-item { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 13px; cursor: pointer; border-radius: 6px; }
+  .acc-item:hover { background: var(--accent-soft); }
+  .acc-item input { accent-color: var(--accent); }
+
+  /* ---------- 汇总条 ---------- */
+  .summary-strip {
+    display: flex; gap: 20px; flex-wrap: wrap; padding: 12px 6px;
+    color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  }
+  .summary-strip b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* ---------- 账号榜单 ---------- */
+  .rank-panel { padding: 10px 18px 14px; margin-bottom: 18px; }
+  .acc-row { display: flex; align-items: center; gap: 14px; padding: 11px 4px; }
+  .acc-row + .acc-row { border-top: 1px solid var(--border); }
+  .rank-no { width: 30px; text-align: center; font-size: 15px; font-weight: 700; color: var(--muted); flex: none; }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 14px; text-transform: uppercase;
+  }
+  .acc-main { flex: 1; min-width: 0; }
+  .acc-name { font-size: 14px; font-weight: 600; margin-bottom: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { height: 8px; background: rgba(128,128,128,.15); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; min-width: 3px; transition: width .4s ease; }
+  .acc-val { flex: none; width: 158px; text-align: right; }
+  .acc-val .num { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
+  .acc-val .unit { font-size: 11px; color: var(--muted); margin-left: 2px; }
+  .acc-val .extra { font-size: 11px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); text-align: center; padding: 50px 0; font-size: 14px; }
+
+  /* ---------- 明细表 ---------- */
+  .table-panel { overflow: auto; max-height: 520px; margin-bottom: 18px; }
+  .table-title { padding: 12px 18px 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  thead th { position: sticky; top: 0; background: var(--panel); z-index: 5; text-align: right; font-size: 12px; }
+  thead th:first-child { text-align: left; }
+  thead th .th-inner { display: inline-flex; align-items: center; gap: 6px; }
+  tbody td { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td:first-child { text-align: left; font-weight: 600; }
+  tbody tr:hover td { background: var(--accent-soft); }
+  td.none { color: var(--muted); }
+  .nodata-row td { text-align: center; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏃 小米步数 · 每日记录</h1>
+  <div class="sub" id="subTitle"></div>
+
+  <div class="panel filters">
+    <div class="fg">
+      <label>日期（日历内点一天 = 单日，点两天 = 范围）</label>
+      <div class="popwrap">
+        <button class="btn" id="dateBtn">📅 --</button>
+        <div class="popup" id="calPop">
+          <div class="cal-quick">
+            <button data-q="today">最新一天</button>
+            <button data-q="d7">近 7 天</button>
+            <button data-q="d30">近 30 天</button>
+            <button data-q="d90">近 90 天</button>
+            <button data-q="all">全部数据</button>
+          </div>
+          <div class="cal-head">
+            <div class="cal-nav"><button id="calPrev">‹</button></div>
+            <div class="cal-title" id="calRangeHint"></div>
+            <div class="cal-nav"><button id="calNext">›</button></div>
+          </div>
+          <div class="cal-months" id="calMonths"></div>
+          <div class="cal-foot">
+            <span id="calSelHint">未选择</span>
+            <button class="apply" id="calApply">应用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="fg">
+      <label>账号</label>
+      <div class="popwrap">
+        <button class="btn" id="accBtn">👤 全部账号</button>
+        <div class="popup" id="accPop">
+          <div class="acc-actions">
+            <button id="accAll">全选</button>
+            <button id="accNone">清空</button>
+          </div>
+          <div id="accList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel rank-panel" id="rankBox"></div>
+  <div class="panel table-panel" id="tableBox" style="display:none"></div>
+</div>
+
+<script>
+const DATA = {"description":"小米运动刷步数 · 每账号每日最后一次步数存档","data":{"2026-08-07":{"dashixiong@qq.ccc":16073,"dxza@qq.com":21919,"xiaoman@qq.ccc":16445,"cui01@qq.com":19100,"cui02@qq.com":21309,"18565152459":19227,"17854229757":17990,"zhini@dhl.com":17584,"lindaqian@qq.com":18472,"wangxu1@qq.com":22703,"wangxu666@qq.com":23956,"chenjuan123@qq.com":18787,"18669782851":22936,"rongjing@yu.com":16317,"abczxn@163.com":22091},"2026-08-08":{"dashixiong@qq.ccc":17733,"dxza@qq.com":19760,"xiaoman@qq.ccc":19853,"cui01@qq.com":14678,"cui02@qq.com":21095,"18565152459":15359,"17854229757":13988,"zhini@dhl.com":17062,"lindaqian@qq.com":13247,"wangxu1@qq.com":16132,"wangxu666@qq.com":17633,"chenjuan123@qq.com":20174,"18669782851":16043,"rongjing@yu.com":17971,"abczxn@163.com":20034},"2026-08-09":{"dashixiong@qq.ccc":15946,"dxza@qq.com":21560,"xiaoman@qq.ccc":14162,"cui01@qq.com":18337,"cui02@qq.com":18085,"18565152459":16969,"17854229757":18801,"zhini@dhl.com":20970,"lindaqian@qq.com":18567,"wangxu1@qq.com":19991,"wangxu666@qq.com":21461,"chenjuan123@qq.com":19034,"18669782851":21362,"rongjing@yu.com":20788,"abczxn@163.com":22048},"2026-08-10":{"dashixiong@qq.ccc":21540,"dxza@qq.com":18075,"xiaoman@qq.ccc":13889,"cui01@qq.com":13582,"cui02@qq.com":18170,"18565152459":16927,"17854229757":20033,"zhini@dhl.com":13969,"lindaqian@qq.com":19245,"wangxu1@qq.com":17697,"wangxu666@qq.com":21265,"chenjuan123@qq.com":20499,"18669782851":19950,"rongjing@yu.com":15093,"abczxn@163.com":20257},"2026-08-11":{"dashixiong@qq.ccc":13566,"dxza@qq.com":14144,"xiaoman@qq.ccc":19864,"cui01@qq.com":19826,"cui02@qq.com":16836,"18565152459":16218,"17854229757":14767,"zhini@dhl.com":14794,"lindaqian@qq.com":15980,"wangxu1@qq.com":15053,"chenjuan123@qq.com":19473,"18669782851":20065,"rongjing@yu.com":19622,"abczxn@163.com":17515},"2026-08-12":{"dashixiong@qq.ccc":16196,"dxza@qq.com":19729,"xiaoman@qq.ccc":20462,"cui01@qq.com":16373,"cui02@qq.com":17060,"18565152459":19101,"17854229757":15515,"zhini@dhl.com":20417,"lindaqian@qq.com":14828,"wangxu1@qq.com":16655,"wangxu666@qq.com":20743,"chenjuan123@qq.com":16581,"18669782851":21501,"rongjing@yu.com":19057,"abczxn@163.com":20691},"2026-08-13":{"dashixiong@qq.ccc":19699,"dxza@qq.com":21686,"xiaoman@qq.ccc":17006,"cui01@qq.com":19659,"cui02@qq.com":18476,"18565152459":20546,"17854229757":14376,"zhini@dhl.com":17549,"lindaqian@qq.com":15290,"wangxu1@qq.com":15455,"wangxu666@qq.com":15765,"chenjuan123@qq.com":17394,"18669782851":20163,"rongjing@yu.com":13796,"abczxn@163.com":15767},"2026-08-14":{"dashixiong@qq.ccc":16688,"dxza@qq.com":14204,"xiaoman@qq.ccc":21994,"cui01@qq.com":16473,"cui02@qq.com":14621,"18565152459":18649,"17854229757":22013,"zhini@dhl.com":16068,"lindaqian@qq.com":21183,"wangxu1@qq.com":16142,"wangxu666@qq.com":19284,"chenjuan123@qq.com":19553,"18669782851":22042,"rongjing@yu.com":15081,"abczxn@163.com":19349},"2026-08-15":{"dashixiong@qq.ccc":17365,"dxza@qq.com":16307,"xiaoman@qq.ccc":23041,"cui01@qq.com":21792,"cui02@qq.com":20737,"18565152459":18121,"17854229757":22755,"zhini@dhl.com":19778,"lindaqian@qq.com":19831,"wangxu1@qq.com":18548,"wangxu666@qq.com":16335,"chenjuan123@qq.com":18773,"18669782851":15429,"rongjing@yu.com":19978,"abczxn@163.com":22757},"2026-08-16":{"dashixiong@qq.ccc":14790,"dxza@qq.com":19966,"xiaoman@qq.ccc":19786,"cui01@qq.com":21127,"cui02@qq.com":14258,"18565152459":14113,"17854229757":15140,"zhini@dhl.com":17916,"lindaqian@qq.com":16881,"wangxu1@qq.com":16153,"wangxu666@qq.com":13558,"chenjuan123@qq.com":15450,"18669782851":14352,"rongjing@yu.com":21124,"abczxn@163.com":20337},"2026-08-17":{"dashixiong@qq.ccc":16230,"dxza@qq.com":14752,"xiaoman@qq.ccc":18061,"cui01@qq.com":16421,"cui02@qq.com":18754,"18565152459":20491,"17854229757":14685,"zhini@dhl.com":13779,"lindaqian@qq.com":18708,"wangxu1@qq.com":17566,"wangxu666@qq.com":15151,"chenjuan123@qq.com":16944,"18669782851":14666,"rongjing@yu.com":16324,"abczxn@163.com":18949},"2026-08-18":{"dashixiong@qq.ccc":12149,"dxza@qq.com":11966,"xiaoman@qq.ccc":10797,"cui01@qq.com":14158,"cui02@qq.com":14783,"18565152459":11021,"17854229757":13711,"zhini@dhl.com":12853,"lindaqian@qq.com":13125,"wangxu1@qq.com":9723,"wangxu666@qq.com":10271,"chenjuan123@qq.com":11077,"18669782851":14687,"rongjing@yu.com":10025,"abczxn@163.com":15183},"2026-08-19":{"dashixiong@qq.ccc":17654,"dxza@qq.com":16464,"xiaoman@qq.ccc":19219,"cui01@qq.com":19495,"cui02@qq.com":16780,"18565152459":13908,"17854229757":15201,"zhini@dhl.com":13680,"lindaqian@qq.com":14415,"wangxu1@qq.com":19569,"wangxu666@qq.com":14094,"chenjuan123@qq.com":17963,"18669782851":16546,"rongjing@yu.com":15837,"abczxn@163.com":17352},"2026-08-20":{"dashixiong@qq.ccc":19520,"dxza@qq.com":13521,"xiaoman@qq.ccc":18723,"cui01@qq.com":13594,"cui02@qq.com":16661,"18565152459":18754,"17854229757":13454,"zhini@dhl.com":12949,"lindaqian@qq.com":20448,"wangxu1@qq.com":17235,"wangxu666@qq.com":15356,"chenjuan123@qq.com":17495,"18669782851":19991,"rongjing@yu.com":17551,"abczxn@163.com":17367},"2026-08-21":{"dashixiong@qq.ccc":16053,"dxza@qq.com":20467,"xiaoman@qq.ccc":14388,"cui01@qq.com":14391,"cui02@qq.com":16752,"18565152459":14612,"17854229757":16235,"zhini@dhl.com":17608,"lindaqian@qq.com":19600,"wangxu1@qq.com":15165,"wangxu666@qq.com":18816,"chenjuan123@qq.com":17170,"18669782851":18655,"rongjing@yu.com":17496,"abczxn@163.com":16491},"2026-08-22":{"dashixiong@qq.ccc":21186,"dxza@qq.com":19281,"xiaoman@qq.ccc":16279,"cui01@qq.com":17538,"cui02@qq.com":16446,"18565152459":13668,"17854229757":16067,"zhini@dhl.com":14349,"lindaqian@qq.com":14261,"wangxu1@qq.com":13847,"wangxu666@qq.com":18616,"chenjuan123@qq.com":15410,"18669782851":19352,"rongjing@yu.com":20072,"abczxn@163.com":19305},"2026-08-23":{"dashixiong@qq.ccc":16142,"dxza@qq.com":21520,"xiaoman@qq.ccc":15631,"cui01@qq.com":17225,"cui02@qq.com":15004,"18565152459":16657,"17854229757":22490,"zhini@dhl.com":18195,"lindaqian@qq.com":17683,"wangxu1@qq.com":21670,"wangxu666@qq.com":21033,"chenjuan123@qq.com":18846,"18669782851":20713,"rongjing@yu.com":17658,"abczxn@163.com":19639},"2026-08-24":{"dashixiong@qq.ccc":16592,"dxza@qq.com":14531,"xiaoman@qq.ccc":19901,"cui01@qq.com":17262,"cui02@qq.com":15630,"18565152459":18739,"17854229757":19155,"zhini@dhl.com":19222,"lindaqian@qq.com":18931,"wangxu1@qq.com":16311,"wangxu666@qq.com":19963,"chenjuan123@qq.com":17830,"18669782851":15757,"rongjing@yu.com":13817,"abczxn@163.com":17501},"2026-08-25":{"dashixiong@qq.ccc":18965,"dxza@qq.com":17021,"xiaoman@qq.ccc":15040,"cui01@qq.com":17250,"cui02@qq.com":15164,"18565152459":15196,"17854229757":13220,"zhini@dhl.com":19881,"lindaqian@qq.com":14136,"wangxu1@qq.com":17756,"wangxu666@qq.com":19714,"chenjuan123@qq.com":15556,"18669782851":19205,"rongjing@yu.com":14784,"abczxn@163.com":20491},"2026-08-26":{"dashixiong@qq.ccc":14058,"dxza@qq.com":14019,"xiaoman@qq.ccc":18921,"cui01@qq.com":16010,"cui02@qq.com":17150,"18565152459":19332,"17854229757":19185,"zhini@dhl.com":16179,"lindaqian@qq.com":21307,"wangxu1@qq.com":15104,"wangxu666@qq.com":18602,"chenjuan123@qq.com":19232,"18669782851":14391,"rongjing@yu.com":16864,"abczxn@163.com":20091},"2026-08-27":{"dashixiong@qq.ccc":29806,"dxza@qq.com":33144,"xiaoman@qq.ccc":35383,"cui01@qq.com":35996,"cui02@qq.com":29037,"18565152459":29380,"17854229757":28681,"zhini@dhl.com":26209,"lindaqian@qq.com":29922,"wangxu1@qq.com":27717,"wangxu666@qq.com":28224,"chenjuan123@qq.com":28968,"18669782851":33028,"rongjing@yu.com":27781,"abczxn@163.com":29122},"2026-08-28":{"dashixiong@qq.ccc":20942,"dxza@qq.com":16857,"xiaoman@qq.ccc":16078,"cui01@qq.com":17768,"cui02@qq.com":24040,"18565152459":16218,"17854229757":22770,"zhini@dhl.com":16625,"lindaqian@qq.com":18589,"wangxu1@qq.com":17553,"wangxu666@qq.com":16227,"chenjuan123@qq.com":17785,"18669782851":17801,"rongjing@yu.com":18271,"abczxn@163.com":20236},"2026-08-29":{"dashixiong@qq.ccc":20307,"dxza@qq.com":14276,"xiaoman@qq.ccc":19629,"cui01@qq.com":21981,"cui02@qq.com":16243,"18565152459":18576,"17854229757":19463,"zhini@dhl.com":19308,"lindaqian@qq.com":17281,"wangxu1@qq.com":19547,"wangxu666@qq.com":14866,"chenjuan123@qq.com":16487,"18669782851":21375,"rongjing@yu.com":18698,"abczxn@163.com":16898},"2026-08-30":{"dashixiong@qq.ccc":23504,"dxza@qq.com":24390,"xiaoman@qq.ccc":33386,"cui01@qq.com":22986,"cui02@qq.com":24831,"18565152459":22020,"17854229757":25725,"zhini@dhl.com":28414,"lindaqian@qq.com":29181,"wangxu1@qq.com":29481,"wangxu666@qq.com":26391,"chenjuan123@qq.com":27297,"18669782851":25964,"rongjing@yu.com":31255,"abczxn@163.com":25657},"2026-08-31":{"dashixiong@qq.ccc":33030,"dxza@qq.com":28930,"xiaoman@qq.ccc":24260,"cui01@qq.com":26785,"cui02@qq.com":23357,"18565152459":23544,"17854229757":23886,"zhini@dhl.com":22560,"lindaqian@qq.com":33000,"wangxu1@qq.com":25669,"wangxu666@qq.com":30271,"chenjuan123@qq.com":32076,"18669782851":32092,"rongjing@yu.com":21337,"abczxn@163.com":32915},"2026-09-01":{"dashixiong@qq.ccc":20694,"dxza@qq.com":20122,"xiaoman@qq.ccc":22539,"cui01@qq.com":22257,"cui02@qq.com":20045,"18565152459":19795,"17854229757":24668,"zhini@dhl.com":22353,"lindaqian@qq.com":19065,"wangxu1@qq.com":22245,"wangxu666@qq.com":27121,"chenjuan123@qq.com":26911,"18669782851":19540,"rongjing@yu.com":27887,"abczxn@163.com":19824},"2026-09-02":{"dashixiong@qq.ccc":30415,"dxza@qq.com":23623,"xiaoman@qq.ccc":23506,"cui01@qq.com":26401,"cui02@qq.com":27527,"18565152459":24577,"17854229757":26101,"zhini@dhl.com":26369,"lindaqian@qq.com":27259,"wangxu1@qq.com":24310,"wangxu666@qq.com":22731,"chenjuan123@qq.com":25962,"18669782851":26383,"rongjing@yu.com":28568,"abczxn@163.com":28088},"2026-09-03":{"dashixiong@qq.ccc":24614,"dxza@qq.com":30005,"xiaoman@qq.ccc":28430,"cui01@qq.com":22800,"cui02@qq.com":21709,"18565152459":25177,"17854229757":21282,"zhini@dhl.com":25989,"lindaqian@qq.com":26306,"wangxu1@qq.com":26045,"wangxu666@qq.com":26032,"chenjuan123@qq.com":28999,"18669782851":25931,"rongjing@yu.com":21098,"abczxn@163.com":26439},"2026-09-04":{"dashixiong@qq.ccc":23949,"dxza@qq.com":18662,"xiaoman@qq.ccc":23014,"cui01@qq.com":27770,"cui02@qq.com":27366,"18565152459":24830,"17854229757":21331,"zhini@dhl.com":26671,"lindaqian@qq.com":18440,"wangxu1@qq.com":18754,"wangxu666@qq.com":18426,"chenjuan123@qq.com":26134,"18669782851":20593,"rongjing@yu.com":25712,"abczxn@163.com":26059},"2026-09-05":{"dashixiong@qq.ccc":28072,"dxza@qq.com":21796,"xiaoman@qq.ccc":26456,"cui01@qq.com":25266,"cui02@qq.com":22134,"18565152459":21106,"17854229757":18238,"zhini@dhl.com":17889,"lindaqian@qq.com":17635,"wangxu1@qq.com":22932,"wangxu666@qq.com":18835,"chenjuan123@qq.com":26817,"18669782851":20156,"rongjing@yu.com":21993,"abczxn@163.com":23510},"2026-09-06":{"dashixiong@qq.ccc":28274,"dxza@qq.com":30743,"xiaoman@qq.ccc":23354,"cui01@qq.com":28263,"cui02@qq.com":23575,"18565152459":26138,"17854229757":20747,"zhini@dhl.com":26074,"lindaqian@qq.com":25503,"wangxu1@qq.com":26508,"wangxu666@qq.com":29600,"chenjuan123@qq.com":26444,"18669782851":21882,"rongjing@yu.com":28680,"abczxn@163.com":27186},"2026-09-07":{"dashixiong@qq.ccc":23805,"dxza@qq.com":26646,"xiaoman@qq.ccc":29100,"cui01@qq.com":22845,"cui02@qq.com":22492,"18565152459":31224,"17854229757":24118,"zhini@dhl.com":23200,"lindaqian@qq.com":23919,"wangxu1@qq.com":31413,"wangxu666@qq.com":20984,"chenjuan123@qq.com":20483,"18669782851":27214,"rongjing@yu.com":30265,"abczxn@163.com":20630},"2026-09-08":{"dashixiong@qq.ccc":21041,"dxza@qq.com":26027,"xiaoman@qq.ccc":20497,"cui01@qq.com":20257,"cui02@qq.com":30393,"18565152459":25137,"17854229757":29762,"zhini@dhl.com":21167,"lindaqian@qq.com":25764,"wangxu1@qq.com":26918,"wangxu666@qq.com":19828,"chenjuan123@qq.com":26602,"18669782851":28685,"rongjing@yu.com":19744,"abczxn@163.com":21270},"2026-09-09":{"dashixiong@qq.ccc":25895,"dxza@qq.com":24830,"xiaoman@qq.ccc":22126,"cui01@qq.com":26815,"cui02@qq.com":20933,"18565152459":22536,"17854229757":30655,"zhini@dhl.com":24101,"lindaqian@qq.com":31794,"wangxu1@qq.com":30692,"wangxu666@qq.com":26606,"chenjuan123@qq.com":31182,"18669782851":26265,"rongjing@yu.com":31693,"abczxn@163.com":22467},"2026-09-10":{"dashixiong@qq.ccc":20841,"dxza@qq.com":29474,"xiaoman@qq.ccc":24285,"cui01@qq.com":28233,"cui02@qq.com":28484,"18565152459":19996,"17854229757":29705,"zhini@dhl.com":26143,"lindaqian@qq.com":23983,"wangxu1@qq.com":22794,"wangxu666@qq.com":19872,"chenjuan123@qq.com":19756,"18669782851":29600,"rongjing@yu.com":30691,"abczxn@163.com":30533},"2026-09-11":{"dashixiong@qq.ccc":25934,"dxza@qq.com":30391,"xiaoman@qq.ccc":27051,"cui01@qq.com":26852,"cui02@qq.com":23044,"18565152459":26241,"17854229757":20399,"zhini@dhl.com":26278,"lindaqian@qq.com":24075,"wangxu1@qq.com":21653,"wangxu666@qq.com":25425,"chenjuan123@qq.com":21043,"18669782851":20907,"rongjing@yu.com":23189,"abczxn@163.com":28161},"2026-09-12":{"dashixiong@qq.ccc":22788,"dxza@qq.com":21380,"xiaoman@qq.ccc":31061,"cui01@qq.com":21182,"cui02@qq.com":26927,"18565152459":22993,"17854229757":22488,"zhini@dhl.com":26584,"lindaqian@qq.com":22018,"wangxu1@qq.com":25427,"wangxu666@qq.com":26539,"chenjuan123@qq.com":28925,"18669782851":26912,"rongjing@yu.com":27591,"abczxn@163.com":22460},"2026-09-13":{"dashixiong@qq.ccc":24131,"dxza@qq.com":18654,"xiaoman@qq.ccc":27821,"cui01@qq.com":20318,"cui02@qq.com":29250,"18565152459":24636,"17854229757":19420,"zhini@dhl.com":26336,"lindaqian@qq.com":24682,"wangxu1@qq.com":19476,"wangxu666@qq.com":29210,"chenjuan123@qq.com":22439,"18669782851":23971,"rongjing@yu.com":19079,"abczxn@163.com":29092},"2026-09-14":{"dashixiong@qq.ccc":30671,"dxza@qq.com":32301,"xiaoman@qq.ccc":21469,"cui01@qq.com":29366,"cui02@qq.com":31883,"18565152459":28597,"17854229757":22618,"zhini@dhl.com":29686,"lindaqian@qq.com":30801,"wangxu1@qq.com":29185,"wangxu666@qq.com":30498,"chenjuan123@qq.com":24621,"18669782851":27235,"rongjing@yu.com":30768,"abczxn@163.com":27805},"2026-09-15":{"dashixiong@qq.ccc":22020,"dxza@qq.com":19855,"xiaoman@qq.ccc":18589,"cui01@qq.com":22344,"cui02@qq.com":25122,"18565152459":19751,"17854229757":20074,"zhini@dhl.com":21691,"lindaqian@qq.com":25635,"wangxu1@qq.com":22221,"wangxu666@qq.com":21719,"chenjuan123@qq.com":21559,"18669782851":22857,"rongjing@yu.com":25016,"abczxn@163.com":21110},"2026-09-16":{"dashixiong@qq.ccc":21186,"dxza@qq.com":18862,"xiaoman@qq.ccc":18457,"cui01@qq.com":17527,"cui02@qq.com":25089,"18565152459":24628,"17854229757":24637,"zhini@dhl.com":25132,"lindaqian@qq.com":21969,"wangxu1@qq.com":26366,"wangxu666@qq.com":20323,"chenjuan123@qq.com":18140,"18669782851":17264,"rongjing@yu.com":18610,"abczxn@163.com":17612},"2026-09-17":{"dashixiong@qq.ccc":19867,"dxza@qq.com":24469,"xiaoman@qq.ccc":21848,"cui01@qq.com":23943,"cui02@qq.com":25900,"18565152459":20732,"17854229757":21435,"zhini@dhl.com":25539,"lindaqian@qq.com":18473,"wangxu1@qq.com":23038,"wangxu666@qq.com":25439,"chenjuan123@qq.com":16872,"18669782851":25038,"rongjing@yu.com":18932,"abczxn@163.com":16672},"2026-09-18":{"dashixiong@qq.ccc":17937,"dxza@qq.com":18259,"xiaoman@qq.ccc":25099,"cui01@qq.com":17366,"cui02@qq.com":20962,"18565152459":23895,"17854229757":23165,"zhini@dhl.com":22574,"lindaqian@qq.com":16252,"wangxu1@qq.com":16981,"wangxu666@qq.com":16506,"chenjuan123@qq.com":22531,"18669782851":20569,"rongjing@yu.com":19692,"abczxn@163.com":18275},"2026-09-19":{"dashixiong@qq.ccc":25794,"dxza@qq.com":22074,"xiaoman@qq.ccc":20306,"cui01@qq.com":23709,"cui02@qq.com":22698,"18565152459":23353,"17854229757":22926,"zhini@dhl.com":29636,"lindaqian@qq.com":26596,"wangxu1@qq.com":27222,"wangxu666@qq.com":22523,"chenjuan123@qq.com":21045,"18669782851":22465,"rongjing@yu.com":29605,"abczxn@163.com":21437},"2026-09-20":{"dashixiong@qq.ccc":20486,"dxza@qq.com":22757,"xiaoman@qq.ccc":19876,"cui01@qq.com":27548,"cui02@qq.com":29410,"18565152459":28481,"17854229757":24650,"zhini@dhl.com":20460,"lindaqian@qq.com":30840,"wangxu1@qq.com":28017,"wangxu666@qq.com":29849,"chenjuan123@qq.com":22608,"18669782851":22266,"rongjing@yu.com":28363,"abczxn@163.com":21537},"2026-09-21":{"dashixiong@qq.ccc":26261,"dxza@qq.com":26004,"xiaoman@qq.ccc":28962,"cui01@qq.com":32912,"cui02@qq.com":30298,"18565152459":21944,"17854229757":33027,"zhini@dhl.com":30043,"lindaqian@qq.com":31569,"wangxu1@qq.com":26445,"wangxu666@qq.com":25059,"chenjuan123@qq.com":31588,"18669782851":22680,"rongjing@yu.com":29881,"abczxn@163.com":23299},"2026-09-22":{"dashixiong@qq.ccc":20151,"dxza@qq.com":17743,"xiaoman@qq.ccc":23907,"cui01@qq.com":17486,"cui02@qq.com":25825,"18565152459":24219,"17854229757":20327,"zhini@dhl.com":20378,"lindaqian@qq.com":19811,"wangxu1@qq.com":17737,"wangxu666@qq.com":23473,"chenjuan123@qq.com":24608,"18669782851":19115,"rongjing@yu.com":27024,"abczxn@163.com":17519},"2026-09-23":{"dashixiong@qq.ccc":19223,"dxza@qq.com":25515,"xiaoman@qq.ccc":21921,"cui01@qq.com":24363,"cui02@qq.com":20497,"18565152459":23415,"17854229757":17694,"zhini@dhl.com":18691,"lindaqian@qq.com":18105,"wangxu1@qq.com":18827,"wangxu666@qq.com":17696,"chenjuan123@qq.com":20311,"18669782851":20837,"rongjing@yu.com":17281,"abczxn@163.com":20851},"2026-09-24":{"dashixiong@qq.ccc":21288,"dxza@qq.com":25840,"xiaoman@qq.ccc":20330,"cui01@qq.com":24139,"cui02@qq.com":31597,"18565152459":26393,"17854229757":26800,"zhini@dhl.com":23134,"lindaqian@qq.com":22980,"wangxu1@qq.com":22435,"wangxu666@qq.com":26322,"chenjuan123@qq.com":21102,"18669782851":27543,"rongjing@yu.com":21436,"abczxn@163.com":25600},"2026-09-25":{"dashixiong@qq.ccc":23041,"dxza@qq.com":18894,"xiaoman@qq.ccc":22392,"cui01@qq.com":18268,"cui02@qq.com":20217,"18565152459":22001,"17854229757":21032,"zhini@dhl.com":20017,"lindaqian@qq.com":17055,"wangxu1@qq.com":17392,"wangxu666@qq.com":22459,"chenjuan123@qq.com":23862,"18669782851":18899,"rongjing@yu.com":20806,"abczxn@163.com":20953},"2026-09-26":{"dashixiong@qq.ccc":18699,"dxza@qq.com":17261,"xiaoman@qq.ccc":23277,"cui01@qq.com":25144,"cui02@qq.com":18080,"18565152459":17002,"17854229757":22213,"zhini@dhl.com":19803,"lindaqian@qq.com":18219,"wangxu1@qq.com":25614,"wangxu666@qq.com":20506,"chenjuan123@qq.com":20929,"18669782851":21638,"rongjing@yu.com":25206,"abczxn@163.com":22131},"2026-09-27":{"dashixiong@qq.ccc":26072,"dxza@qq.com":17408,"xiaoman@qq.ccc":19753,"cui01@qq.com":25635,"cui02@qq.com":26572,"18565152459":18303,"17854229757":18114,"zhini@dhl.com":17217,"lindaqian@qq.com":23832,"wangxu1@qq.com":23493,"wangxu666@qq.com":19135,"chenjuan123@qq.com":24200,"18669782851":22434,"rongjing@yu.com":24551,"abczxn@163.com":24322},"2026-09-28":{"dashixiong@qq.ccc":23767,"dxza@qq.com":20347,"xiaoman@qq.ccc":21164,"cui01@qq.com":20002,"cui02@qq.com":25727,"18565152459":28193,"17854229757":18837,"zhini@dhl.com":21014,"lindaqian@qq.com":18583,"wangxu1@qq.com":28354,"wangxu666@qq.com":23700,"chenjuan123@qq.com":24924,"18669782851":19829,"rongjing@yu.com":20549,"abczxn@163.com":28203},"2026-09-29":{"dashixiong@qq.ccc":20993,"dxza@qq.com":20495,"xiaoman@qq.ccc":22896,"cui01@qq.com":28373,"cui02@qq.com":24047,"18565152459":21099,"17854229757":20368,"zhini@dhl.com":19410,"lindaqian@qq.com":20859,"wangxu1@qq.com":23562,"wangxu666@qq.com":26864,"chenjuan123@qq.com":29187,"18669782851":22430,"rongjing@yu.com":24740,"abczxn@163.com":22587},"2026-09-30":{"dashixiong@qq.ccc":29042,"dxza@qq.com":24509,"xiaoman@qq.ccc":18339,"cui01@qq.com":23101,"cui02@qq.com":26781,"18565152459":22996,"17854229757":22686,"zhini@dhl.com":29210,"lindaqian@qq.com":24603,"wangxu1@qq.com":26340,"wangxu666@qq.com":28856,"chenjuan123@qq.com":18564,"18669782851":18962,"rongjing@yu.com":26518,"abczxn@163.com":27435},"2026-10-01":{"dashixiong@qq.ccc":19786,"dxza@qq.com":24040,"xiaoman@qq.ccc":20028,"cui01@qq.com":21540,"cui02@qq.com":21069,"18565152459":21285,"17854229757":26138,"zhini@dhl.com":18971,"lindaqian@qq.com":18386,"wangxu1@qq.com":20709,"wangxu666@qq.com":25926,"chenjuan123@qq.com":25426,"18669782851":18530,"rongjing@yu.com":20817,"abczxn@163.com":25716},"2026-10-02":{"dashixiong@qq.ccc":24688,"dxza@qq.com":24920,"xiaoman@qq.ccc":25846,"cui01@qq.com":27670,"cui02@qq.com":25163,"18565152459":22679,"17854229757":21750,"zhini@dhl.com":19376,"lindaqian@qq.com":24619,"wangxu1@qq.com":21333,"wangxu666@qq.com":19498,"chenjuan123@qq.com":24210,"18669782851":28347,"rongjing@yu.com":21723,"abczxn@163.com":26863},"2026-10-03":{"dashixiong@qq.ccc":23233,"dxza@qq.com":19691,"xiaoman@qq.ccc":26976,"cui01@qq.com":24523,"cui02@qq.com":19943,"18565152459":25158,"17854229757":24843,"zhini@dhl.com":26322,"lindaqian@qq.com":17527,"wangxu1@qq.com":17934,"wangxu666@qq.com":20384,"chenjuan123@qq.com":22143,"18669782851":22525,"rongjing@yu.com":21391,"abczxn@163.com":24718},"2026-10-04":{"dashixiong@qq.ccc":26102,"dxza@qq.com":26797,"xiaoman@qq.ccc":20525,"cui01@qq.com":22084,"cui02@qq.com":23849,"18565152459":26352,"17854229757":24042,"zhini@dhl.com":25475,"lindaqian@qq.com":23713,"wangxu1@qq.com":28047,"wangxu666@qq.com":20648,"chenjuan123@qq.com":25255,"18669782851":22873,"rongjing@yu.com":23706,"abczxn@163.com":19962},"2026-10-05":{"dashixiong@qq.ccc":22563,"dxza@qq.com":25767,"xiaoman@qq.ccc":19598,"cui01@qq.com":19805,"cui02@qq.com":20686,"18565152459":21916,"17854229757":20735,"zhini@dhl.com":21292,"lindaqian@qq.com":18867,"wangxu1@qq.com":23234,"wangxu666@qq.com":25953,"chenjuan123@qq.com":25405,"18669782851":27134,"rongjing@yu.com":23141,"abczxn@163.com":22943},"2026-10-06":{"dashixiong@qq.ccc":35143,"dxza@qq.com":30208,"xiaoman@qq.ccc":31012,"cui01@qq.com":26598,"cui02@qq.com":26296,"18565152459":35492,"17854229757":31831,"zhini@dhl.com":23938,"lindaqian@qq.com":33872,"wangxu1@qq.com":28930,"wangxu666@qq.com":23943,"chenjuan123@qq.com":34590,"18669782851":35090,"rongjing@yu.com":31271,"abczxn@163.com":27341},"2026-10-07":{"dashixiong@qq.ccc":29412,"dxza@qq.com":27601,"xiaoman@qq.ccc":23641,"cui01@qq.com":22764,"cui02@qq.com":22507,"18565152459":27684,"17854229757":21691,"zhini@dhl.com":23981,"lindaqian@qq.com":22166,"wangxu1@qq.com":19059,"wangxu666@qq.com":28046,"chenjuan123@qq.com":21767,"18669782851":27892,"rongjing@yu.com":19956,"abczxn@163.com":20706},"2026-10-08":{"dashixiong@qq.ccc":31426,"dxza@qq.com":24751,"xiaoman@qq.ccc":29804,"cui01@qq.com":27222,"cui02@qq.com":27342,"18565152459":29691,"17854229757":28961,"zhini@dhl.com":25995,"lindaqian@qq.com":29851,"wangxu1@qq.com":24049,"wangxu666@qq.com":31124,"chenjuan123@qq.com":23683,"18669782851":29350,"rongjing@yu.com":26820,"abczxn@163.com":30227},"2026-10-09":{"dashixiong@qq.ccc":24309,"dxza@qq.com":26973,"xiaoman@qq.ccc":26856,"cui01@qq.com":25096,"cui02@qq.com":19326,"18565152459":29131,"17854229757":29238,"zhini@dhl.com":29341,"lindaqian@qq.com":26154,"wangxu1@qq.com":30644,"wangxu666@qq.com":22432,"chenjuan123@qq.com":28866,"18669782851":22423,"rongjing@yu.com":30419,"abczxn@163.com":25675},"2026-10-10":{"dashixiong@qq.ccc":21214,"dxza@qq.com":26236,"xiaoman@qq.ccc":30440,"cui01@qq.com":20560,"cui02@qq.com":29776,"18565152459":20083,"17854229757":29576,"zhini@dhl.com":22129,"lindaqian@qq.com":27450,"wangxu1@qq.com":22196,"wangxu666@qq.com":26317,"chenjuan123@qq.com":24447,"18669782851":26238,"rongjing@yu.com":25681,"abczxn@163.com":23385},"2026-10-11":{"dashixiong@qq.ccc":28573,"dxza@qq.com":24385,"xiaoman@qq.ccc":26429,"cui01@qq.com":25847,"cui02@qq.com":18567,"18565152459":28947,"17854229757":27946,"zhini@dhl.com":25121,"lindaqian@qq.com":19703,"wangxu1@qq.com":18795,"wangxu666@qq.com":19312,"chenjuan123@qq.com":29446,"18669782851":28239,"rongjing@yu.com":24575,"abczxn@163.com":19199},"2026-10-12":{"dashixiong@qq.ccc":24488,"dxza@qq.com":26680,"xiaoman@qq.ccc":25952,"cui01@qq.com":22051,"cui02@qq.com":23982,"18565152459":24901,"17854229757":18448,"zhini@dhl.com":24985,"lindaqian@qq.com":17773,"wangxu1@qq.com":24920,"wangxu666@qq.com":27612,"chenjuan123@qq.com":23617,"18669782851":19850,"rongjing@yu.com":22239,"abczxn@163.com":27119},"2026-10-13":{"dashixiong@qq.ccc":18554,"dxza@qq.com":16990,"xiaoman@qq.ccc":16080,"cui01@qq.com":13059,"cui02@qq.com":17332,"18565152459":19593,"17854229757":20189,"zhini@dhl.com":20189,"lindaqian@qq.com":18528,"wangxu1@qq.com":20134,"wangxu666@qq.com":16433,"chenjuan123@qq.com":19803,"18669782851":19036,"rongjing@yu.com":18869,"abczxn@163.com":19330},"2026-10-14":{"dashixiong@qq.ccc":17281,"dxza@qq.com":23777,"xiaoman@qq.ccc":26527,"cui01@qq.com":17395,"cui02@qq.com":21042,"18565152459":26175,"17854229757":27196,"zhini@dhl.com":25978,"lindaqian@qq.com":26947,"wangxu1@qq.com":22506,"wangxu666@qq.com":22087,"chenjuan123@qq.com":25093,"18669782851":18629,"rongjing@yu.com":26679,"abczxn@163.com":21861},"2026-10-17":{"dashixiong@qq.ccc":21089,"dxza@qq.com":16612,"xiaoman@qq.ccc":17851,"cui01@qq.com":21855,"cui02@qq.com":21090,"18565152459":26160,"17854229757":20948,"zhini@dhl.com":19922,"lindaqian@qq.com":18981,"wangxu1@qq.com":16672,"wangxu666@qq.com":16579,"chenjuan123@qq.com":23286,"18669782851":16484,"rongjing@yu.com":20291,"abczxn@163.com":18742},"2026-10-18":{"dashixiong@qq.ccc":26191,"dxza@qq.com":29402,"xiaoman@qq.ccc":19748,"cui01@qq.com":22664,"cui02@qq.com":22369,"18565152459":26143,"17854229757":27517,"zhini@dhl.com":28472,"lindaqian@qq.com":20866,"wangxu1@qq.com":27564,"wangxu666@qq.com":19916,"chenjuan123@qq.com":26340,"18669782851":29378,"rongjing@yu.com":25979,"abczxn@163.com":23022},"2026-10-19":{"dashixiong@qq.ccc":27542,"dxza@qq.com":32774,"xiaoman@qq.ccc":24763,"cui01@qq.com":31976,"cui02@qq.com":25743,"18565152459":32529,"17854229757":29915,"zhini@dhl.com":28706,"lindaqian@qq.com":23478,"wangxu1@qq.com":28796,"wangxu666@qq.com":26853,"chenjuan123@qq.com":21530,"18669782851":21674,"rongjing@yu.com":29667,"abczxn@163.com":27967},"2026-10-20":{"dashixiong@qq.ccc":20722,"dxza@qq.com":16455,"xiaoman@qq.ccc":20903,"cui01@qq.com":23055,"cui02@qq.com":16379,"18565152459":17943,"17854229757":25028,"zhini@dhl.com":22724,"lindaqian@qq.com":24171,"wangxu1@qq.com":24232,"wangxu666@qq.com":24217,"chenjuan123@qq.com":18977,"18669782851":21610,"rongjing@yu.com":24118,"abczxn@163.com":20423},"2026-10-21":{"dashixiong@qq.ccc":26667,"dxza@qq.com":24052,"xiaoman@qq.ccc":19849,"cui01@qq.com":25038,"cui02@qq.com":24979,"18565152459":26037,"17854229757":19724,"zhini@dhl.com":26086,"lindaqian@qq.com":17086,"wangxu1@qq.com":22054,"wangxu666@qq.com":24444,"chenjuan123@qq.com":17328,"18669782851":21035,"rongjing@yu.com":24762,"abczxn@163.com":19824},"2026-10-22":{"dashixiong@qq.ccc":16172,"dxza@qq.com":20818,"xiaoman@qq.ccc":15902,"cui01@qq.com":15794,"cui02@qq.com":17264,"18565152459":21439,"17854229757":17386,"zhini@dhl.com":20065,"lindaqian@qq.com":15893,"wangxu1@qq.com":20546,"wangxu666@qq.com":15882,"chenjuan123@qq.com":19678,"18669782851":18131,"rongjing@yu.com":18617,"abczxn@163.com":22891},"2026-10-23":{"dashixiong@qq.ccc":16416,"dxza@qq.com":18328,"xiaoman@qq.ccc":19061,"cui01@qq.com":22195,"cui02@qq.com":19081,"18565152459":25025,"17854229757":20234,"zhini@dhl.com":21491,"lindaqian@qq.com":19004,"wangxu1@qq.com":17584,"wangxu666@qq.com":24341,"chenjuan123@qq.com":19524,"18669782851":24292,"rongjing@yu.com":24278,"abczxn@163.com":20091},"2026-10-24":{"dashixiong@qq.ccc":25071,"dxza@qq.com":19609,"xiaoman@qq.ccc":18122,"cui01@qq.com":20043,"cui02@qq.com":23766,"18565152459":18068,"17854229757":23689,"zhini@dhl.com":16949,"lindaqian@qq.com":16700,"wangxu1@qq.com":22042,"wangxu666@qq.com":16470,"chenjuan123@qq.com":22622,"18669782851":22111,"rongjing@yu.com":17016,"abczxn@163.com":19723},"2026-10-25":{"dashixiong@qq.ccc":22424,"dxza@qq.com":20592,"xiaoman@qq.ccc":27307,"cui01@qq.com":20470,"cui02@qq.com":26425,"18565152459":30434,"17854229757":31170,"zhini@dhl.com":21395,"lindaqian@qq.com":29369,"wangxu1@qq.com":22643,"wangxu666@qq.com":23768,"chenjuan123@qq.com":30051,"18669782851":22762,"rongjing@yu.com":25362,"abczxn@163.com":20979},"2026-10-26":{"dashixiong@qq.ccc":25153,"dxza@qq.com":20953,"xiaoman@qq.ccc":30649,"cui01@qq.com":21935,"cui02@qq.com":22355,"18565152459":27456,"17854229757":31121,"zhini@dhl.com":32624,"lindaqian@qq.com":23039,"wangxu1@qq.com":21314,"wangxu666@qq.com":31916,"chenjuan123@qq.com":27280,"18669782851":28830,"rongjing@yu.com":24719,"abczxn@163.com":28610},"2026-10-27":{"dashixiong@qq.ccc":23541,"dxza@qq.com":23878,"xiaoman@qq.ccc":22822,"cui01@qq.com":22532,"cui02@qq.com":23392,"18565152459":26312,"17854229757":22627,"zhini@dhl.com":24362,"lindaqian@qq.com":30272,"wangxu1@qq.com":29975,"wangxu666@qq.com":26540,"chenjuan123@qq.com":28526,"18669782851":22354,"rongjing@yu.com":24040,"abczxn@163.com":21611},"2026-10-28":{"dashixiong@qq.ccc":26594,"dxza@qq.com":23058,"xiaoman@qq.ccc":28615,"cui01@qq.com":19224,"cui02@qq.com":18630,"18565152459":26701,"17854229757":27312,"zhini@dhl.com":20998,"lindaqian@qq.com":20850,"wangxu1@qq.com":24692,"wangxu666@qq.com":24745,"chenjuan123@qq.com":24692,"18669782851":18384,"rongjing@yu.com":21891,"abczxn@163.com":21960},"2026-10-29":{"dashixiong@qq.ccc":27739,"dxza@qq.com":31308,"xiaoman@qq.ccc":26689,"cui01@qq.com":21024,"cui02@qq.com":24015,"18565152459":25902,"17854229757":27464,"zhini@dhl.com":27803,"lindaqian@qq.com":25992,"wangxu1@qq.com":25668,"wangxu666@qq.com":30115,"chenjuan123@qq.com":27963,"18669782851":26342,"rongjing@yu.com":28784,"abczxn@163.com":29367},"2026-10-30":{"dashixiong@qq.ccc":28465,"dxza@qq.com":21154,"xiaoman@qq.ccc":24147,"cui01@qq.com":23811,"cui02@qq.com":24259,"18565152459":22520,"17854229757":24534,"zhini@dhl.com":20575,"lindaqian@qq.com":20121,"wangxu1@qq.com":25845,"wangxu666@qq.com":20566,"chenjuan123@qq.com":27776,"18669782851":28726,"rongjing@yu.com":28661,"abczxn@163.com":20330},"2026-10-31":{"dashixiong@qq.ccc":21864,"dxza@qq.com":22219,"xiaoman@qq.ccc":20827,"cui01@qq.com":21876,"cui02@qq.com":24338,"18565152459":19842,"17854229757":24713,"zhini@dhl.com":27202,"lindaqian@qq.com":25292,"wangxu1@qq.com":30179,"wangxu666@qq.com":28835,"chenjuan123@qq.com":21398,"18669782851":19033,"rongjing@yu.com":26945,"abczxn@163.com":28851},"2026-11-01":{"dashixiong@qq.ccc":28460,"dxza@qq.com":20503,"xiaoman@qq.ccc":19977,"cui01@qq.com":27595,"cui02@qq.com":28837,"18565152459":23059,"17854229757":27803,"zhini@dhl.com":24062,"lindaqian@qq.com":25986,"wangxu1@qq.com":28062,"wangxu666@qq.com":28058,"chenjuan123@qq.com":20975,"18669782851":21179,"rongjing@yu.com":22721,"abczxn@163.com":26685},"2026-11-02":{"dashixiong@qq.ccc":27081,"dxza@qq.com":21057,"xiaoman@qq.ccc":19311,"cui01@qq.com":19554,"cui02@qq.com":23440,"18565152459":22395,"17854229757":20386,"zhini@dhl.com":21988,"lindaqian@qq.com":18549,"wangxu1@qq.com":23979,"wangxu666@qq.com":21645,"chenjuan123@qq.com":19402,"18669782851":22016,"rongjing@yu.com":20841,"abczxn@163.com":27145},"2026-11-03":{"dashixiong@qq.ccc":17563,"dxza@qq.com":18283,"xiaoman@qq.ccc":14922,"cui01@qq.com":14575,"cui02@qq.com":14736,"18565152459":18262,"17854229757":19781,"zhini@dhl.com":20080,"lindaqian@qq.com":17139,"wangxu1@qq.com":15421,"wangxu666@qq.com":13616,"chenjuan123@qq.com":15009,"18669782851":13807,"rongjing@yu.com":16386,"abczxn@163.com":20338},"2026-11-04":{"dashixiong@qq.ccc":24549,"dxza@qq.com":31025,"xiaoman@qq.ccc":29096,"cui01@qq.com":20720,"cui02@qq.com":30405,"18565152459":26401,"17854229757":30145,"zhini@dhl.com":20554,"lindaqian@qq.com":29611,"wangxu1@qq.com":23004,"wangxu666@qq.com":24536,"chenjuan123@qq.com":25830,"18669782851":26845,"rongjing@yu.com":27307,"abczxn@163.com":27867},"2026-11-05":{"dashixiong@qq.ccc":37308,"dxza@qq.com":36119,"xiaoman@qq.ccc":36710,"cui01@qq.com":33977,"cui02@qq.com":36116,"18565152459":30081,"17854229757":44083,"zhini@dhl.com":35632,"lindaqian@qq.com":38973,"wangxu1@qq.com":40029,"wangxu666@qq.com":38571,"chenjuan123@qq.com":37153,"18669782851":44891,"rongjing@yu.com":31907,"abczxn@163.com":39010}},"accounts":["dashixiong@qq.ccc","dxza@qq.com","xiaoman@qq.ccc","cui01@qq.com","cui02@qq.com","18565152459","17854229757","zhini@dhl.com","lindaqian@qq.com","wangxu1@qq.com","wangxu666@qq.com","chenjuan123@qq.com","18669782851","rongjing@yu.com","abczxn@163.com"],"updated_at":"2026-11-05T11:47:36+08:00"};
+</script>
+<script>
+"use strict";
+const ACCOUNTS = DATA.accounts;
+const PALETTE = ["#4285F4","#EA4335","#34A853","#F4A900","#9334E6","#00ACC1","#FF7043",
+                 "#7CB342","#5C6BC0","#EC407A","#26A69A","#E0930F","#8D6E63","#78909C","#D81B60"];
+const ACC_COLOR = Object.fromEntries(ACCOUNTS.map((a, i) => [a, PALETTE[i % PALETTE.length]]));
+const ALL_DATES = Object.keys(DATA.data).sort();
+const fmt = n => n == null ? "—" : n.toLocaleString("en-US");
+const MEDALS = ["🥇", "🥈", "🥉"];
+
+/* ---------------- 状态 ---------------- */
+const state = {
+  selStart: null, selEnd: null,          // 待应用的日历选择（未点应用）
+  applied: { start: null, end: null },   // 已应用的日期（start === end 即单日）
+  accounts: new Set(ACCOUNTS),
+  calView: null,                          // 日历左格 {y, m}
+};
+
+/* ---------------- 工具 ---------------- */
+const pad = n => String(n).padStart(2, "0");
+const dstr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseD = s => { const [y, m, dd] = s.split("-").map(Number); return new Date(y, m - 1, dd); };
+const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return dstr(d); };
+const clampDate = s => s < ALL_DATES[0] ? ALL_DATES[0] : (s > ALL_DATES[ALL_DATES.length - 1] ? ALL_DATES[ALL_DATES.length - 1] : s);
+const dateList = (a, b) => { const out = []; let c = a; while (c <= b) { out.push(c); c = addDays(c, 1); } return out; };
+const WEEK = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+const weekday = s => WEEK[parseD(s).getDay()];
+
+/* ---------------- 弹层开关 ---------------- */
+function bindPopup(btnId, popId) {
+  const btn = document.getElementById(btnId), pop = document.getElementById(popId);
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    const open = pop.classList.contains("open");
+    document.querySelectorAll(".popup").forEach(p => p.classList.remove("open"));
+    if (!open) pop.classList.add("open");
+  });
+  pop.addEventListener("click", e => e.stopPropagation());
+}
+bindPopup("dateBtn", "calPop");
+bindPopup("accBtn", "accPop");
+document.addEventListener("click", () => document.querySelectorAll(".popup").forEach(p => p.classList.remove("open")));
+
+/* ---------------- 账号筛选 ---------------- */
+function renderAccList() {
+  const box = document.getElementById("accList");
+  box.innerHTML = "";
+  ACCOUNTS.forEach(a => {
+    const item = document.createElement("label");
+    item.className = "acc-item";
+    const dot = `<span class="dot" style="background:${ACC_COLOR[a]}"></span>`;
+    item.innerHTML = `${dot}<input type="checkbox" ${state.accounts.has(a) ? "checked" : ""}> <span>${a}</span>`;
+    item.querySelector("input").addEventListener("change", e => {
+      e.target.checked ? state.accounts.add(a) : state.accounts.delete(a);
+      if (state.accounts.size === 0) state.accounts.add(a); // 至少保留一个
+      syncAccBtn(); renderAll(); renderAccList();
+    });
+    box.appendChild(item);
+  });
+}
+function syncAccBtn() {
+  document.getElementById("accBtn").textContent =
+    state.accounts.size === ACCOUNTS.length ? "👤 全部账号" : `👤 ${state.accounts.size} / ${ACCOUNTS.length} 个账号`;
+}
+document.getElementById("accAll").addEventListener("click", () => { state.accounts = new Set(ACCOUNTS); syncAccBtn(); renderAccList(); renderAll(); });
+document.getElementById("accNone").addEventListener("click", () => { state.accounts = new Set([ACCOUNTS[0]]); syncAccBtn(); renderAccList(); renderAll(); });
+
+/* ---------------- 日历（点一天=单日，点两天=范围） ---------------- */
+function openCal() {
+  const base = state.applied.end || ALL_DATES[ALL_DATES.length - 1] || dstr(new Date());
+  state.selStart = state.applied.start;
+  state.selEnd = state.applied.start === state.applied.end ? null : state.applied.end;
+  const d = parseD(base);
+  state.calView = { y: d.getFullYear(), m: d.getMonth() };
+  renderCal();
+}
+function monthData(y, m) {
+  const first = new Date(y, m, 1);
+  const startOffset = (first.getDay() + 6) % 7; // 周一开头
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(`${y}-${pad(m + 1)}-${pad(d)}`);
+  while (cells.length % 7) cells.push(null);
+  return cells;
+}
+function renderCal() {
+  const { y, m } = state.calView;
+  const box = document.getElementById("calMonths");
+  box.innerHTML = "";
+  for (let k = 0; k < 2; k++) {
+    const cm = new Date(y, m + k, 1);
+    const mon = document.createElement("div");
+    mon.className = "cal-month";
+    mon.innerHTML = `<h4>${cm.getFullYear()} 年 ${cm.getMonth() + 1} 月</h4>`;
+    const grid = document.createElement("div");
+    grid.className = "cal-grid";
+    ["一","二","三","四","五","六","日"].forEach(w => {
+      const c = document.createElement("div"); c.className = "dow"; c.textContent = w; grid.appendChild(c);
+    });
+    monthData(cm.getFullYear(), cm.getMonth()).forEach(ds => {
+      const c = document.createElement("div");
+      if (!ds) { grid.appendChild(c); return; }
+      c.className = "cal-day";
+      c.textContent = Number(ds.slice(8));
+      if (ds < ALL_DATES[0] || ds > ALL_DATES[ALL_DATES.length - 1]) c.classList.add("dim");
+      else if (DATA.data[ds]) c.classList.add("hasdata");
+      const a = state.selStart;
+      const b = state.selEnd == null ? a : state.selEnd;
+      if (a && ds >= a && ds <= b) {
+        c.classList.add("inrange");
+        if (ds === a) { c.classList.add("selstart"); c.classList.remove("inrange"); }
+        if (ds === b) { c.classList.add("selend"); c.classList.remove("inrange"); }
+        if (a === b && ds === a) c.classList.add("samesel");
+      }
+      c.addEventListener("click", () => pickDay(ds));
+      grid.appendChild(c);
+    });
+    mon.appendChild(grid);
+    box.appendChild(mon);
+  }
+  const hint = !state.selStart ? "点击选择日期"
+    : state.selEnd == null ? `已选起点 ${state.selStart}，再点一天结束（同一天 = 只看单日）`
+    : state.selStart === state.selEnd ? `单日：${state.selStart}`
+    : `范围：${state.selStart} ~ ${state.selEnd}（${dateList(state.selStart, state.selEnd).length} 天）`;
+  document.getElementById("calSelHint").textContent = hint;
+  document.getElementById("calRangeHint").textContent =
+    `${y} 年 ${m + 1} 月 ~ ${new Date(y, m + 1, 1).getFullYear()} 年 ${new Date(y, m + 1, 1).getMonth() + 1} 月`;
+}
+function pickDay(ds) {
+  if (!state.selStart || state.selEnd != null) { state.selStart = ds; state.selEnd = null; }   // 开始新一轮
+  else if (ds < state.selStart) { state.selEnd = state.selStart; state.selStart = ds; }        // 点了更早的 → 交换
+  else { state.selEnd = ds; }                                                                   // 单日或范围完成
+  renderCal();
+}
+document.getElementById("calPrev").addEventListener("click", () => { state.calView.m--; if (state.calView.m < 0) { state.calView.m = 11; state.calView.y--; } renderCal(); });
+document.getElementById("calNext").addEventListener("click", () => { state.calView.m++; if (state.calView.m > 11) { state.calView.m = 0; state.calView.y++; } renderCal(); });
+document.querySelectorAll(".cal-quick button").forEach(b => b.addEventListener("click", () => {
+  const last = ALL_DATES[ALL_DATES.length - 1];
+  const q = b.dataset.q;
+  if (q === "today") { state.selStart = last; state.selEnd = last; }        // 最新一天（单日）
+  else if (q === "all") { state.selStart = ALL_DATES[0]; state.selEnd = last; }
+  else {
+    const n = q === "d7" ? 6 : q === "d30" ? 29 : 89;
+    state.selStart = clampDate(addDays(last, -n)); state.selEnd = last;
+  }
+  const d = parseD(state.selEnd); state.calView = { y: d.getFullYear(), m: d.getMonth() };
+  renderCal();
+}));
+document.getElementById("calApply").addEventListener("click", () => {
+  if (!state.selStart) return;
+  state.applied.start = state.selStart;
+  state.applied.end = state.selEnd == null ? state.selStart : state.selEnd;
+  document.getElementById("calPop").classList.remove("open");
+  syncDateBtn(); renderAll();
+});
+function syncDateBtn() {
+  const { start, end } = state.applied;
+  document.getElementById("dateBtn").textContent =
+    !start ? "📅 请选择日期" : start === end ? `📅 ${start} ${weekday(start)}` : `📅 ${start} ~ ${end}`;
+}
+
+/* ---------------- 单日：账号榜单 ---------------- */
+function renderRank(dates) {
+  const box = document.getElementById("rankBox");
+  const accs = ACCOUNTS.filter(a => state.accounts.has(a));
+  const d = dates[0];
+
+  if (!accs.length) {
+    box.innerHTML = `<div class="empty">请选择账号</div>`;
+    return;
+  }
+
+  // 收集 (账号, 值)
+  const pairs = accs.map(a => ({ a, v: (DATA.data[d] || {})[a] })).filter(p => p.v != null);
+
+  if (!pairs.length) {
+    box.innerHTML = `<div class="empty">该日期没有数据</div>`;
+    return;
+  }
+
+  const rows = pairs.map(p => ({ a: p.a, v: p.v })).sort((x, y) => y.v - x.v);
+  const maxMain = Math.max(...rows.map(r => r.v));
+
+  // 汇总条：只报日期与账号数
+  let html = `<div class="summary-strip"><span>📅 <b>${d}</b> ${weekday(d)}</span><span>账号 <b>${rows.length}</b></span></div>`;
+
+  // 账号行
+  rows.forEach((r, i) => {
+    const w = Math.max(2, r.v / maxMain * 100);
+    const extra = r.v === maxMain ? "当日第一" : `为最高的 ${Math.round(r.v / maxMain * 100)}%`;
+    html += `
+      <div class="acc-row">
+        <div class="rank-no">${i < 3 ? MEDALS[i] : i + 1}</div>
+        <div class="avatar" style="background:${ACC_COLOR[r.a]}">${r.a.slice(0, 2)}</div>
+        <div class="acc-main">
+          <div class="acc-name">${r.a}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${ACC_COLOR[r.a]}"></div></div>
+        </div>
+        <div class="acc-val">
+          <div class="num">${fmt(r.v)}<span class="unit">步</span></div>
+          <div class="extra">${extra}</div>
+        </div>
+      </div>`;
+  });
+  box.innerHTML = html;
+}
+
+/* ---------------- 范围：每日明细表（主展示） ---------------- */
+function renderTable(dates) {
+  const box = document.getElementById("tableBox");
+  const accs = ACCOUNTS.filter(a => state.accounts.has(a));
+  if (!accs.length) { box.innerHTML = '<div class="empty">请选择账号</div>'; box.style.display = ""; return; }
+  let html = `<div class="table-title">每日步数（${dates.length} 天）</div><table><thead><tr><th>日期</th>`;
+  html += accs.map(a => `<th><span class="th-inner"><span class="dot" style="background:${ACC_COLOR[a]}"></span>${a}</span></th>`).join("");
+  html += "</tr></thead><tbody>";
+  [...dates].reverse().forEach(d => {
+    const row = DATA.data[d];
+    if (!row || !Object.keys(row).length) {
+      html += `<tr class="nodata-row"><td>${d}</td><td colspan="${accs.length}">无数据</td></tr>`;
+      return;
+    }
+    html += `<tr><td>${d} ${weekday(d)}</td>` + accs.map(a => {
+      const v = row[a];
+      return v == null ? '<td class="none">—</td>' : `<td>${fmt(v)}</td>`;
+    }).join("") + "</tr>";
+  });
+  html += "</tbody></table>";
+  box.innerHTML = html;
+  box.style.display = "";
+}
+
+/* ---------------- 主渲染：单日→榜单，范围→每日明细表 ---------------- */
+function renderAll() {
+  const dates = dateList(state.applied.start, state.applied.end);
+  const rankBox = document.getElementById("rankBox");
+  if (dates.length === 1) {
+    rankBox.style.display = "";
+    renderRank(dates);
+    document.getElementById("tableBox").style.display = "none";
+  } else {
+    rankBox.style.display = "none";
+    renderTable(dates);
+  }
+}
+
+/* ---------------- 初始化（默认最新一天） ---------------- */
+const LATEST = ALL_DATES[ALL_DATES.length - 1];
+document.getElementById("subTitle").textContent =
+  `数据范围 ${ALL_DATES[0]} ~ ${LATEST} · 共 ${ALL_DATES.length} 天 · ${ACCOUNTS.length} 个账号 · 更新于 ${DATA.updated_at.replace("T", " ").slice(0, 16)}`;
+state.applied.start = LATEST;
+state.applied.end = LATEST;
+syncDateBtn(); syncAccBtn(); renderAccList(); renderAll();
+document.getElementById("dateBtn").addEventListener("click", openCal);
+</script>
+</body>
+</html>
